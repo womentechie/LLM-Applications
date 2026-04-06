@@ -3,4 +3,5 @@ langchain-core
 streamlit
 langchain-openai
 python-dotenv
+gTTS
 
