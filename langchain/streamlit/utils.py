@@ -148,7 +148,7 @@ def build_llm(provider: str, model: str, api_key: str):
         st.stop()
 
 
-def get_or_set_api_key() -> tuple[str, str, str]:
+def get_or_set_api_key_old() -> tuple[str, str, str]:
     """
     Resolves provider, model, and API key via (in priority order):
       1. Streamlit session state  — already validated this session
@@ -225,7 +225,93 @@ def get_or_set_api_key() -> tuple[str, str, str]:
     st.stop()  # Block the rest of the app until confirmed
 
 
-# ── Backwards-compatibility shim ─────────────────────────────────────────────
+def get_or_set_api_key() -> tuple[str, str, str]:
+    """
+    Resolves provider, model, and API key — always per user, per session.
+
+    !! DEPLOYMENT SECURITY — WHY os.environ IS NOT USED !!
+    -------------------------------------------------------
+    os.environ is PROCESS-LEVEL memory shared across every concurrent
+    user on the same server. Using it here would cause two critical bugs:
+
+      1. KEY LEAKAGE — reading os.environ after one user sets it would
+         hand that user's private API key to every subsequent user who
+         opens the app, even in a different browser tab.
+
+      2. KEY POLLUTION — writing a user's key to os.environ would persist
+         it for the lifetime of the server process, not just the session.
+
+    st.session_state is the correct storage — it is isolated per browser
+    tab and automatically cleared when the tab is closed.
+
+    Priority order:
+      1. st.session_state — already entered this session (fast path)
+      2. Streamlit UI     — user enters key fresh via the auth screen
+
+    Returns:
+        (api_key, provider, model)
+    """
+
+    # ── 1. Already resolved this session (fast path) ────────────────────────
+    # session_state is scoped to a single browser tab — reading from it
+    # here is safe and never touches another user's data.
+    if all(k in st.session_state for k in ("api_key", "provider", "model")):
+        return (
+            st.session_state["api_key"],
+            st.session_state["provider"],
+            st.session_state["model"],
+        )
+
+    # ── 2. Show auth UI — every user must enter their own key ────────────────
+    st.title("🤖 LLM Configuration")
+    st.markdown("Choose a provider and model, then enter your API key to continue.")
+    st.info(
+        "🔒 Your API key is stored only in your browser session and is never "
+        "shared with other users. It clears automatically when you close the tab."
+    )
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        chosen_provider = st.selectbox("LLM Provider", list(PROVIDERS.keys()))
+
+    cfg = PROVIDERS[chosen_provider]
+
+    with col2:
+        chosen_model = st.selectbox(
+            "Model",
+            cfg["models"],
+            index=cfg["models"].index(cfg["default_model"]),
+        )
+
+    placeholder = f"{cfg['key_prefix']}..." if cfg["key_prefix"] else "Paste your API key here"
+    user_key = st.text_input(
+        f"{chosen_provider} API Key",
+        type="password",
+        placeholder=placeholder,
+        help="Your key is stored only in your session and cleared when you close the tab.",
+    )
+
+    if st.button("✅ Confirm & Continue", use_container_width=True):
+        if not user_key.strip():
+            st.error("API key cannot be empty.")
+        else:
+            detected = _auto_detect_provider(user_key.strip())
+            if detected and detected != chosen_provider:
+                st.warning(
+                    f"⚠️ This key looks like a **{detected}** key, "
+                    f"but you selected **{chosen_provider}**. Please double-check."
+                )
+            else:
+                # ✅ Store ONLY in session_state — isolated to this user's tab.
+                # ❌ Never write to os.environ — that would leak to all users.
+                st.session_state["api_key"] = user_key.strip()
+                st.session_state["provider"] = chosen_provider
+                st.session_state["model"] = chosen_model
+                st.rerun()
+
+    st.stop()  # Block the rest of the app until the user confirms their key
+
 # Any file still calling get_or_set_openai_key() will continue to work.
 def get_or_set_openai_key() -> str:
     api_key, _, _ = get_or_set_api_key()
