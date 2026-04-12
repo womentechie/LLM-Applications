@@ -81,14 +81,21 @@ PROVIDERS = {
 def _auto_detect_provider(api_key: str) -> str | None:
     """
     Return provider name if the key prefix matches a known provider, else None.
-    NOTE: Anthropic prefix ('sk-ant-') must be checked before OpenAI ('sk-')
-    since one is a superset of the other — PROVIDERS dict order handles this.
+
+    IMPORTANT: Sort by prefix length descending before checking.
+    'sk-ant-' (Anthropic) and 'sk-' (OpenAI) both match an Anthropic key
+    if checked in the wrong order — longest prefix must win.
+    e.g. 'sk-ant-abc' → startswith('sk-ant-') ✅  startswith('sk-') ✅
+    Checking longest first ensures 'sk-ant-' is matched correctly.
     """
-    for name, cfg in PROVIDERS.items():
-        print("_auto_detect_provider | api-key:", api_key)
-        prefix = cfg["key_prefix"]
-        print("_auto_detect_provider | prefix", api_key)
-        if prefix and api_key.startswith(prefix):
+    # Build list of (name, prefix) sorted by prefix length, longest first
+    sorted_providers = sorted(
+        [(name, cfg["key_prefix"]) for name, cfg in PROVIDERS.items() if cfg["key_prefix"]],
+        key=lambda x: len(x[1]),
+        reverse=True  # longest prefix first → 'sk-ant-' before 'sk-'
+    )
+    for name, prefix in sorted_providers:
+        if api_key.startswith(prefix):
             return name
     return None
 
@@ -202,11 +209,7 @@ def get_or_set_api_key() -> tuple[str, str, str]:
             st.error("API key cannot be empty.")
         else:
             # Warn if the key prefix doesn't match the selected provider
-            print("user_key:", user_key.strip())
             detected = _auto_detect_provider(user_key.strip())
-            print("detected",detected)
-            print("chosen_provider",chosen_provider)
-
             if detected and detected != chosen_provider:
                 st.warning(
                     f"⚠️ This key looks like a **{detected}** key, "
