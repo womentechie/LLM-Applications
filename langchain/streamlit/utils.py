@@ -85,7 +85,9 @@ def _auto_detect_provider(api_key: str) -> str | None:
     since one is a superset of the other — PROVIDERS dict order handles this.
     """
     for name, cfg in PROVIDERS.items():
+        print("_auto_detect_provider | api-key:", api_key)
         prefix = cfg["key_prefix"]
+        print("_auto_detect_provider | prefix", api_key)
         if prefix and api_key.startswith(prefix):
             return name
     return None
@@ -200,7 +202,11 @@ def get_or_set_api_key() -> tuple[str, str, str]:
             st.error("API key cannot be empty.")
         else:
             # Warn if the key prefix doesn't match the selected provider
+            print("user_key:", user_key.strip())
             detected = _auto_detect_provider(user_key.strip())
+            print("detected",detected)
+            print("chosen_provider",chosen_provider)
+
             if detected and detected != chosen_provider:
                 st.warning(
                     f"⚠️ This key looks like a **{detected}** key, "
