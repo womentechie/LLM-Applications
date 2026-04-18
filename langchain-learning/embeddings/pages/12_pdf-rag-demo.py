@@ -1,46 +1,3 @@
-# ============================================================
-# CONCEPT: RAG — Retrieval-Augmented Generation
-# ============================================================
-# RAG solves a fundamental LLM limitation: LLMs only know what
-# they were trained on. They can't answer questions about YOUR
-# documents (product data, internal docs, research papers, etc.)
-#
-# RAG fixes this by:
-#   1. Splitting your documents into small chunks
-#   2. Embedding each chunk → storing vectors in ChromaDB
-#   3. When a question arrives, embedding it too
-#   4. Finding the most relevant chunks via similarity search
-#   5. Passing those chunks as context to the LLM
-#   6. LLM generates an answer GROUNDED in your actual documents
-#
-# TWO MODELS ARE NEEDED — THIS IS WHY app.py RESOLVES BOTH:
-#   Embedding model → converts text to vectors (retrieval step)
-#   Chat model      → generates the answer (generation step)
-#   You can mix providers: OpenAI embeddings + Claude for answers ✅
-#
-# WHAT CHANGED FROM THE ORIGINAL:
-#   Before → Hardcoded OpenAI only, os.environ key, input() terminal
-#   After  → Any provider via utils/embeddings_utils, session-safe keys,
-#             pipeline_utils for loading, full Streamlit UI,
-#             source display so users see WHERE the answer came from
-#
-# CHAINS USED:
-#   create_stuff_documents_chain (langchain_classic) → takes retrieved chunks
-#     + question, formats them into a prompt, sends to LLM, returns answer
-#   create_retrieval_chain (langchain_classic) → wraps the above with the
-#     retriever: automatically retrieves chunks for each question then calls
-#     the stuff chain
-#
-# NOTE ON IMPORTS:
-#   LangChain recently restructured — chains moved to langchain-classic.
-#   Use: from langchain_classic.chains.retrieval import create_retrieval_chain
-#   NOT: from langchain.chains.retrieval import create_retrieval_chain
-#
-# FILE LOCATION:
-#   embeddings/pages/rag_demo.py
-#   Place your document at: embeddings/data/text/product-data.txt
-# ============================================================
-
 # FIX: hashlib added to generate a unique, filesystem-safe Chroma
 # collection_name from the cache key (see Step 4 below).
 import hashlib
@@ -50,10 +7,6 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_classic.chains.retrieval import create_retrieval_chain
 from langchain_classic.chains.combine_documents import create_stuff_documents_chain
 
-# ── Import shared utilities ───────────────────────────────────
-# embeddings_utils → embedding model (for vectorising docs + queries)
-# utils            → chat model     (for generating answers)
-# pipeline_utils   → document loading + chunking
 from embeddings_utils import (
     get_or_set_embedding_key,
     build_embeddings,
@@ -68,7 +21,7 @@ from pipeline_utils import (
 )
 
 # ── App Setup ──────────────────────────────────────────────────
-st.set_page_config(page_title="RAG Demo", layout="centered", page_icon="🧠")
+st.set_page_config(page_title="PDF RAG Demo", layout="centered", page_icon="🧠")
 st.title("🧠 RAG — Chat with Your Documents")
 st.markdown(
     "Ask questions about your own documents. "
@@ -137,27 +90,27 @@ col_file, col_size, col_overlap = st.columns([3, 1, 1])
 with col_file:
     # Default to product_data.txt if it exists
     default = next(
-        (f for f in all_files if "product_data" in f),
+        (f for f in all_files if "academic_research_data" in f),
         all_files[0]
     )
 
     # FIX: Track the previously selected file so we can detect when the user
     # switches documents. Without this, stale vectors from the old file remain
     # in session_state and contaminate answers about the new file.
-    prev_selected = st.session_state.get("rag10_prev_selected")
+    prev_selected = st.session_state.get("pdf_rag_prev_selected")
     selected = st.selectbox(
         "Choose a document",
         all_files,
         index=all_files.index(default),
     )
     # FIX: When the document changes, purge only this page's cached vectorstores
-    # (keys prefixed "rag10_vs_") so the new file gets a clean index.
+    # (keys prefixed "pdf_rag_vs_") so the new file gets a clean index.
     # Auth keys ("api_key", "embed_api_key" etc.) are intentionally left intact.
     if selected != prev_selected:
-        keys_to_clear = [k for k in st.session_state if k.startswith("rag10_vs_")]
+        keys_to_clear = [k for k in st.session_state if k.startswith("pdf_rag_vs_")]
         for k in keys_to_clear:
             del st.session_state[k]
-        st.session_state["rag10_prev_selected"] = selected
+        st.session_state["pdf_rag_prev_selected"] = selected
 
 with col_size:
     # chunk_size controls how much text each vector represents.
@@ -189,11 +142,11 @@ with col_overlap:
 # Cache key includes file + chunk settings + both providers/models
 # so it rebuilds automatically when any of those change.
 #
-# FIX: Cache key now uses the "rag10_vs_" prefix so it is scoped to this
+# FIX: Cache key now uses the "pdf_rag_vs_" prefix so it is scoped to this
 # page only and never collides with cache keys from other RAG pages that
-# share the same session_state (e.g. 08_chroma_job_search, 12_pdf_rag_demo).
+# share the same session_state (e.g. 10_rag_demo, 11_rag_demo_history_aware).
 cache_key = (
-    f"rag10_vs_{selected}_{chunk_size}_{chunk_overlap}"
+    f"pdf_rag_vs_{selected}_{chunk_size}_{chunk_overlap}"
     f"_{embed_provider}_{embed_model}"
 )
 
@@ -235,7 +188,7 @@ if cache_key not in st.session_state:
         # file ever indexed in this session.
         # The MD5 of cache_key produces a short, unique, filesystem-safe
         # name that is deterministic for a given (file + settings + provider).
-        collection_name = "rag10-" + hashlib.md5(cache_key.encode()).hexdigest()[:16]
+        collection_name = "pdfrag-" + hashlib.md5(cache_key.encode()).hexdigest()[:16]
         vector_store = Chroma.from_documents(
             chunks,
             embeddings,
@@ -264,10 +217,13 @@ st.divider()
 #   2. ChromaDB cosine similarity search → top-k chunks
 #   3. Returns list[Document]
 #
-# FIX: The retriever is now built AFTER the k number_input (Step 6) so
-# it is moved below. The original code built the retriever here with a
-# hardcoded k=3, which meant the UI widget had no effect. The retriever
-# is now constructed with the live `k` value from the widget.
+# FIX: The retriever is now built AFTER the k number_input (Step 6) so it
+# uses the live widget value. The original code built the retriever here
+# with a hardcoded k=3 and then patched it via retriever.search_kwargs["k"] = k
+# after the widget — that patch works but is fragile because the chain
+# (create_retrieval_chain) captures the retriever object by reference at
+# construction time. Building retriever and chain together after the widget
+# is cleaner and avoids any ordering surprises.
 
 # CONCEPT: ChatPromptTemplate with {context} and {input}
 # {context} → filled automatically by create_retrieval_chain with
@@ -275,17 +231,14 @@ st.divider()
 # {input}   → the user's question
 prompt_template = ChatPromptTemplate.from_messages(
     [
-        (
-            "system",
-            """You are an assistant for answering questions about documents.
-Use ONLY the provided context to respond.
-If the answer isn't in the context, say you don't know — do not make things up.
-Keep your response to three concise sentences maximum.
+        ("system", """You are an assistant for answering questions.
+        Use the provided context to respond.If the answer 
+        isn't clear, acknowledge that you don't know. 
+        Limit your response to three concise sentences.
+        {context}
 
-Context:
-{context}""",
-        ),
-        ("human", "{input}"),
+        """),
+        ("human", "{input}")
     ]
 )
 
@@ -317,9 +270,10 @@ with col_k:
         help="Number of document chunks to retrieve.",
     )
 
-# FIX: retriever is built here using the live `k` from the widget above.
-# Previously it was built earlier in Step 5 with a hardcoded k=3, so the
-# number_input widget existed in the UI but had no effect on retrieval.
+# FIX: retriever and rag_chain are now built here, after `k` is known,
+# instead of before the widget in Step 5. This replaces both the original
+# hardcoded retriever and the fragile after-the-fact patch:
+#   retriever.search_kwargs["k"] = k   ← removed; clean build used instead.
 # CONCEPT: create_retrieval_chain
 # Wraps the retriever and qa_chain into a single end-to-end pipeline.
 # When invoked with {"input": question}:

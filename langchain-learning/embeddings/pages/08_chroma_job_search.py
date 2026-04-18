@@ -27,6 +27,9 @@
 #   Job listings file:   embeddings/data/text/job_listings.txt
 # ============================================================
 
+# FIX: hashlib added to generate a unique, filesystem-safe Chroma
+# collection_name from the cache key (see Step 3 below).
+import hashlib
 import streamlit as st
 from langchain_chroma import Chroma
 
@@ -49,17 +52,22 @@ st.markdown(
 # get_or_set_embedding_key() checks st.session_state first (fast path),
 # then shows the provider/model/key UI if not yet entered.
 # Keys are stored ONLY in session_state — never in os.environ.
-api_key, provider, model = get_or_set_embedding_key()
+api_key, embed_provider, model = get_or_set_embedding_key()
+
+# CONDITIONAL OVERRIDE: If the user selected OpenAI, force the 3072-dimension
+# model so it doesn't crash against the existing ChromaDB collection.
+if embed_provider == "OpenAI":
+    embed_model = "text-embedding-3-large"
 
 # build_embeddings() returns the correct LangChain embeddings object:
 #   OpenAI   → OpenAIEmbeddings(model=model, api_key=api_key)
 #   Cohere   → CohereEmbeddings(...)
 #   HuggingFace → HuggingFaceEmbeddings(model_name=model)  ← free, local
 #   etc.
-embeddings = build_embeddings(provider, model, api_key)
+embeddings = build_embeddings(embed_provider, model, api_key)
 
-dims = get_embedding_dimensions(provider, model)
-st.success(f"✅ Ready — **{provider}** · `{model}`")
+dims = get_embedding_dimensions(embed_provider, model)
+st.success(f"✅ Ready — **{embed_provider}** · `{model}`")
 if dims:
     st.caption(f"📐 Vector dimensions: {dims}")
 
@@ -88,11 +96,24 @@ with col1:
         if "job_listings.txt" in available["text"]
         else available["text"][0]
     )
+
+    # FIX: Track the previously selected file so we can detect when the user
+    # switches documents. Without this, stale vectors from the old file remain
+    # in session_state and contaminate searches against the new file.
+    prev_file = st.session_state.get("job_prev_file")
     selected_file = st.selectbox(
         "📄 Job listings file",
         available["text"],
         index=available["text"].index(default_file),
     )
+    # FIX: When the document changes, purge only this page's cached vectorstores
+    # (keys prefixed "job_vs_") so the new file gets a clean index.
+    # Auth keys ("embed_api_key" etc.) are intentionally left intact.
+    if selected_file != prev_file:
+        keys_to_clear = [k for k in st.session_state if k.startswith("job_vs_")]
+        for k in keys_to_clear:
+            del st.session_state[k]
+        st.session_state["job_prev_file"] = selected_file
 
 with col2:
     # chunk_size controls how much text each vector represents.
@@ -114,7 +135,11 @@ with col2:
 #
 # The cache key includes the filename, chunk size, and provider+model
 # so it rebuilds automatically when any of those change.
-cache_key = f"vectorstore_{selected_file}_{chunk_size}_{provider}_{model}"
+#
+# FIX: Cache key now uses the "job_vs_" prefix so it is scoped to this
+# page only and never collides with cache keys from other RAG pages that
+# share the same session_state (e.g. 10_rag_demo, 12_pdf_rag_demo).
+cache_key = f"job_vs_{selected_file}_{chunk_size}_{embed_provider}_{model}"
 
 if cache_key not in st.session_state:
     with st.spinner(f"Loading and indexing `{selected_file}`..."):
@@ -146,9 +171,19 @@ if cache_key not in st.session_state:
         # For persistence across restarts, add:
         #   persist_directory="./chroma_db"
         # to the Chroma.from_documents() call.
+        #
+        # FIX: collection_name is now passed explicitly.
+        # Without it, every call to Chroma.from_documents() writes into
+        # Chroma's single default collection, so switching files merges
+        # all their vectors together — queries return chunks from every
+        # file ever indexed in this session.
+        # The MD5 of cache_key produces a short, unique, filesystem-safe
+        # name that is deterministic for a given (file + settings + provider).
+        collection_name = "job-" + hashlib.md5(cache_key.encode()).hexdigest()[:16]
         vectorstore = Chroma.from_documents(
             documents=chunks,
             embedding=embeddings,
+            collection_name=collection_name,  # FIX: isolates this file's vectors
         )
 
         # Cache both the store and chunk stats in session_state
