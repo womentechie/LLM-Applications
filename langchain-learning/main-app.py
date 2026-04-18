@@ -43,7 +43,6 @@
 # ============================================================
 
 import sys
-import os
 import streamlit as st
 from dotenv import load_dotenv, find_dotenv
 
@@ -61,12 +60,6 @@ MODULE_DIRS = [
     # "agents",       ← add when ready
     # "fine-tuning",  ← add when ready
 ]
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-for module_dir in MODULE_DIRS:
-    path = os.path.join(BASE_DIR, module_dir)
-    if path not in sys.path:
-        sys.path.insert(0, path)
 
 # ── App-wide config ───────────────────────────────────────────
 # Called ONCE here. Individual pages must NOT call st.set_page_config().
