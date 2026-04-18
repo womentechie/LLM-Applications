@@ -1,119 +1,57 @@
 # ============================================================
-# requirements.txt — LLM-Applications / langchain-learning
+# Root requirements.txt — Streamlit Cloud deployment
 # ============================================================
+# Streamlit Cloud installs from the requirements.txt it finds
+# in the root of the repository (next to main-app.py).
 #
-# !! INTEL MAC (x86_64) WITH PYCHARM VENV — READ FIRST !!
-# ---------------------------------------------------------
-# On Intel Mac, `pip` may point to the system Python (/usr/local/bin/pip)
-# even when your venv is activated. Always use pip3 or python -m pip
-# to ensure packages install into your project venv, not system Python.
+# Each module folder also has its own requirements.txt for local
+# development, but Streamlit Cloud only reads this root file.
 #
-# Verify before installing:
-#   which pip3    → should show .venv/bin/pip3   ✅
-#   which python  → should show .venv/bin/python ✅
-#   which pip     → may show /usr/local/bin/pip  ⚠️  (use pip3 instead)
-#
-# INSTALL ORDER — run these commands exactly in this sequence:
-#
-#   Step 1:  pip3 install "onnxruntime==1.19.2"
-#   Step 2:  pip3 install chromadb
-#   Step 3:  pip3 install langchain-chroma
-#   Step 4:  pip3 install -r requirements.txt
-#   Step 5:  pip3 install faiss-cpu --no-deps
-#   Step 6:  python -c "import chromadb; import faiss; print('✅ Both working')"
-#
-# WHY THE ORDER MATTERS:
-#   onnxruntime >= 1.20 has no Intel Mac (x86_64) wheel — pin 1.19.2 first
-#   so pip3 never tries to upgrade it when resolving chromadb's dependencies.
-#   faiss-cpu pulls in numba/llvmlite which fail to build on Intel Mac —
-#   --no-deps skips those, and faiss still works fine with just numpy.
-#
-# Apple Silicon (arm64) users:
-#   pip3 install -r requirements.txt
-#   pip3 install faiss-cpu --no-deps
-#   python -c "import chromadb; import faiss; print('✅ Both working')"
+# KEEPING THIS IN SYNC:
+#   When you add a new package in a module, add it here too.
+#   Run `pip freeze | grep <package>` locally to pin the version.
 # ============================================================
-
 
 # ── Core ──────────────────────────────────────────────────────
-streamlit                   # Web UI framework
-python-dotenv               # Load .env files for local dev
+streamlit>=1.36.0           # st.navigation() requires 1.36+
+python-dotenv               # local .env loading (safe no-op on Cloud)
 
+# ── LangChain core ────────────────────────────────────────────
+langchain
+langchain-core
+langchain-community
+langchain-text-splitters
+langchain-classic           # create_retrieval_chain, create_stuff_documents_chain
 
-# ── LangChain base ────────────────────────────────────────────
-langchain                   # Core LangChain framework
-langchain-core              # Primitives: prompts, runnables, parsers
-langchain-community         # Community loaders, stores, utilities
-langchain-text-splitters    # Document chunking (pipeline_utils.py)
-langchain-classic           # RAG chains: create_retrieval_chain,
-                            # create_stuff_documents_chain
-                            # (moved out of langchain base in recent versions)
+# ── Chat / vision providers — install all, use what you need ──
+langchain-openai            # ChatOpenAI, OpenAIEmbeddings
+langchain-anthropic         # ChatAnthropic
+langchain-google-genai      # ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
+langchain-cohere            # ChatCohere, CohereEmbeddings
+langchain-mistralai         # ChatMistralAI, MistralAIEmbeddings
+langchain-groq              # ChatGroq
 
-
-# ── Chat model providers (utils.py) ──────────────────────────
-langchain-openai            # OpenAI GPT chat + embeddings
-langchain-anthropic         # Anthropic Claude chat
-langchain-google-genai      # Google Gemini chat + embeddings
-langchain-cohere            # Cohere Command chat + embeddings
-langchain-mistralai         # Mistral chat + embeddings
-langchain-groq              # Groq inference (Llama, Mixtral, Gemma)
-
-
-# ── Embedding model providers (embeddings_utils.py) ──────────
-langchain-huggingface       # HuggingFace local embeddings
-sentence-transformers       # Required by HuggingFaceEmbeddings
-                            # Downloads models locally — no API key needed
-
-
-# ── onnxruntime — MUST be pinned on Intel Mac ─────────────────
-# Pulled in by: chromadb, sentence-transformers
-# Versions >= 1.20 dropped Intel Mac (x86_64) wheels entirely.
-# 1.19.2 is the last version with a macosx_x86_64 wheel.
-# Install this BEFORE chromadb — see install order in header above.
-# Apple Silicon users: you can remove this pin safely.
-onnxruntime==1.19.2
-
-
-# ── Document loaders (pipeline_utils.py) ─────────────────────
-pypdf                       # PDF loading via PyPDFLoader
-# unstructured[docx]        # Word document support (optional)
-# unstructured[md]          # Markdown support (optional)
-
+# ── Embedding providers ───────────────────────────────────────
+langchain-huggingface       # HuggingFaceEmbeddings (local, free)
+sentence-transformers       # required by langchain-huggingface
 
 # ── Vector stores ─────────────────────────────────────────────
-# chromadb and langchain-chroma must be installed BEFORE this file
-# on Intel Mac — see install order in header above.
-langchain-chroma            # LangChain wrapper for ChromaDB
-chromadb                    # ChromaDB in-memory or persisted vector store
+langchain-chroma
+chromadb
 
-# faiss-cpu must be installed with --no-deps on Intel Mac to avoid
-# the numba/llvmlite build failure. It is intentionally excluded here.
-# Install separately after this file:
-#   pip3 install faiss-cpu --no-deps
-# faiss-cpu                 # ← excluded — install separately with --no-deps
+# ── Document loaders ──────────────────────────────────────────
+pypdf                       # PDF loading in RAG demos
 
+# ── Image processing ──────────────────────────────────────────
+Pillow                      # SVG→JPEG conversion in KYC page
+cairosvg                    # SVG→PNG step (requires system cairo lib)
+                            # On Streamlit Cloud add to packages.txt:
+                            #   libcairo2-dev
+                            #   libpango1.0-dev
 
-# ── RAG pipeline ─────────────────────────────────────────────
-# No extra packages — covered by langchain + vector stores above
-
-
-# ── Text To Speech (6_TextToSpeech.py only) ──────────────────
-gtts                        # Google Text-to-Speech: text → MP3
-
+# ── Audio (Streamlit patterns module) ─────────────────────────
+gTTS                        # Text-to-speech in 6_TextToSpeech.py
 
 # ── Utilities ─────────────────────────────────────────────────
-numpy                       # Cosine similarity + required by faiss-cpu
-tiktoken                    # OpenAI tokeniser used internally by LangChain
-
-
-# ── Optional: Cloud vector stores ────────────────────────────
-# pinecone-client           # Pinecone cloud vector store
-# langchain-pinecone        # LangChain wrapper for Pinecone
-# weaviate-client           # Weaviate cloud vector store
-# langchain-weaviate        # LangChain wrapper for Weaviate
-
-
-# ── Optional: Additional document loaders ────────────────────
-# beautifulsoup4            # Web page loading (WebBaseLoader)
-# youtube-transcript-api    # YouTube video transcripts
-# boto3                     # AWS S3 document loading
+numpy
+tiktoken                    # token counting for OpenAI models
