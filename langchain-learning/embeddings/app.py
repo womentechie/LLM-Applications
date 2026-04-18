@@ -101,7 +101,9 @@ pages = {
 
     # ── RAG demos — needs both embedding + chat keys ──────────
     "🧠 RAG": [
-        st.Page("pages/10_rag_demo.py", title="RAG Demo", icon="🧠"),
+        st.Page("pages/10_rag_demo.py", title="RAG Demo - Text", icon="🧠"),
+        st.Page("pages/11_rag_demo_history_aware.py", title="RAG Demo - History Aware", icon="🧠"),
+        st.Page("pages/12_pdf-rag-demo.py", title=" RAG Demo - PDF", icon="🧠"),
     ],
 
     # ── Chunking — uncomment as you build each page ───────────
