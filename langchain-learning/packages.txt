@@ -1,0 +1,14 @@
+# ============================================================
+# packages.txt — Streamlit Cloud system (apt) dependencies
+# ============================================================
+# Streamlit Cloud runs apt-get install on every package listed
+# here before installing Python packages from requirements.txt.
+#
+# Required by cairosvg (SVG→PNG conversion in KYC demo).
+# Without these, `import cairosvg` raises OSError on Cloud.
+# ============================================================
+libcairo2-dev
+libpango1.0-dev
+libgdk-pixbuf2.0-dev
+libffi-dev
+shared-mime-info

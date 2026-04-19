@@ -29,6 +29,14 @@
 #   EMBEDDING KEY  →  "embed_api_key", "embed_provider", "embed_model"
 #   CHAT KEY       →  "api_key", "provider", "model"
 #
+# ── ROOT-LEVEL FILE REQUIRED ──────────────────────────────────
+#   hub_utils.py — single utility at repo root that loads credentials
+#   from embeddings/ using importlib (explicit file paths, no sys.path
+#   dependency). Unique name avoids any conflict with module-level
+#   utils.py files inside embeddings/, image-processing/, streamlit/.
+#   Individual pages do NOT import from hub_utils — they use their
+#   own module's utils.py resolved via sys.path injection below.
+#
 # ── URL PATH RULE ─────────────────────────────────────────────
 #   Every st.Page() MUST have a unique url_path.
 #   Without it Streamlit infers from filename — three home.py files
@@ -43,10 +51,19 @@
 # ============================================================
 
 import sys
+import os
 import streamlit as st
-from dotenv import load_dotenv, find_dotenv
-
-load_dotenv(find_dotenv())
+# load_dotenv reads a local .env file for development.
+# On Streamlit Cloud there is no .env file — credentials are set via
+# the Streamlit Cloud Secrets manager (Settings → Secrets) and are
+# already present as environment variables, so load_dotenv is a no-op.
+# The try/except ensures the app still starts even if python-dotenv
+# is not installed in the deployment environment.
+try:
+    from dotenv import load_dotenv, find_dotenv
+    load_dotenv(find_dotenv())
+except ImportError:
+    pass  # Streamlit Cloud: secrets injected as env vars — dotenv not needed
 
 # ── sys.path injection ────────────────────────────────────────
 # Each module folder is prepended to sys.path so pages can do:
@@ -60,6 +77,12 @@ MODULE_DIRS = [
     # "agents",       ← add when ready
     # "fine-tuning",  ← add when ready
 ]
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+for module_dir in MODULE_DIRS:
+    path = os.path.join(BASE_DIR, module_dir)
+    if path not in sys.path:
+        sys.path.insert(0, path)
 
 # ── App-wide config ───────────────────────────────────────────
 # Called ONCE here. Individual pages must NOT call st.set_page_config().
@@ -129,11 +152,15 @@ st.markdown("""
 
 # ── Credential resolution ─────────────────────────────────────
 # Both keys resolved upfront — pages hit session_state fast-path.
-from embeddings_utils import get_or_set_embedding_key
-embed_key, embed_provider, embed_model = get_or_set_embedding_key()
+#
+# hub_utils.py (at repo root) uses importlib to load credentials
+# from their real locations inside the embeddings/ module folder.
+# This avoids name collisions with module-level utils.py files and
+# works reliably on Streamlit Cloud regardless of sys.path state.
+from hub_utils import get_embedding_key, get_chat_key
 
-from utils import get_or_set_api_key
-chat_key, chat_provider, chat_model = get_or_set_api_key()
+embed_key, embed_provider, embed_model = get_embedding_key()
+chat_key,  chat_provider,  chat_model  = get_chat_key()
 
 # ── Module selector ───────────────────────────────────────────
 # IMPORTANT: st.navigation() always occupies the TOP of the sidebar.

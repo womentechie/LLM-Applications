@@ -1,0 +1,40 @@
+# ── API keys & secrets — NEVER commit these ──────────────────
+.env
+.env.*
+.streamlit/secrets.toml
+
+# ── Python cache ──────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# ── Virtual environments ──────────────────────────────────────
+.venv/
+venv/
+env/
+.venv*/
+
+# ── Vector store indexes (auto-generated, large) ──────────────
+chroma_db/
+faiss_index/
+*.index
+
+# ── OS & editor artifacts ─────────────────────────────────────
+.DS_Store
+.DS_Store?
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ── Jupyter ───────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ── Build / dist ──────────────────────────────────────────────
+dist/
+build/
+*.egg-info/
