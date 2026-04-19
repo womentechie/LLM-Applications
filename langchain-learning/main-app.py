@@ -184,8 +184,8 @@ MODULE_OPTIONS = {
     "🏠 All modules":        "all",
     "🔢 Embeddings & RAG":   "embeddings",
     "🖼️ Image Processing":   "image",
+    "🎙️ Audio Processing":   "audio",      # ← add this
     "⚡ Streamlit Patterns": "streamlit",
-    # "🤖 Agents":           "agents",     ← uncomment when ready
 }
 
 # Read the active module from query params (persists across navigation).
@@ -260,6 +260,18 @@ ALL_PAGES = {
         ],
     },
 
+    # ── Audio Processing module ───────────────────────────────────
+    # Needs CHAT KEY only — no embeddings.
+    # Whisper runs locally — no API key needed for transcription.
+    "audio": {
+        "🎙️ Audio Processing": [
+            st.Page("audio-processing-whisper/pages/home.py",
+                    title="Audio Overview", icon="🎙️", url_path="aud-home"),
+            st.Page("audio-processing-whisper/pages/30_audio_assistant.py",
+                    title="Audio Q&A", icon="🎧", url_path="aud-qa"),
+        ],
+    },
+
     # ── Streamlit Patterns module ─────────────────────────────
     # Needs CHAT KEY only. Core LangChain + Streamlit patterns.
     "streamlit": {
@@ -318,7 +330,7 @@ active_pages = dict(ALL_PAGES["home"])   # always present
 
 if selected_module == "all":
     # Merge every module's sections in order
-    for mod_key in ["embeddings", "image", "streamlit"]:
+    for mod_key in ["embeddings", "image", "audio", "streamlit"]:
         active_pages.update(ALL_PAGES.get(mod_key, {}))
 else:
     active_pages.update(ALL_PAGES.get(selected_module, {}))

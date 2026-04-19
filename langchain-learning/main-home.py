@@ -33,6 +33,7 @@ MODULE_OPTIONS = {
     "🏠 All modules":        "all",
     "🔢 Embeddings & RAG":   "embeddings",
     "🖼️ Image Processing":   "image",
+    "🎙️ Audio Processing":   "audio",      # ← add this
     "⚡ Streamlit Patterns": "streamlit",
 }
 
@@ -98,6 +99,9 @@ with col_b:
     st.markdown("""
 **🖼️ Image Processing**
 Multimodal vision — image Q&A, KYC verification, product comparison.
+
+**🖼️ Audio Processing**
+Multimodal audio — audio Q&A.
 
 **⚡ Streamlit Patterns**
 Core LangChain patterns — prompt templates, LCEL chains, chat memory, TTS.

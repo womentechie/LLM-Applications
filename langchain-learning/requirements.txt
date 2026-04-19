@@ -51,7 +51,7 @@ cairosvg                    # SVG→PNG step (requires system cairo lib)
 
 # ── Audio (Streamlit patterns module) ─────────────────────────
 gTTS                        # Text-to-speech in 6_TextToSpeech.py
-
+faster-whisper
 # ── Utilities ─────────────────────────────────────────────────
 numpy
 tiktoken                    # token counting for OpenAI models

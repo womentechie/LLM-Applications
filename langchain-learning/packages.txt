@@ -12,3 +12,4 @@ libpango1.0-dev
 libgdk-pixbuf2.0-dev
 libffi-dev
 shared-mime-info
+ffmpeg
